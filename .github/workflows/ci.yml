@@ -15,13 +15,20 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const platforms = ['Ubuntu 22.04', 'Ubuntu 24.04', 'Windows 2022', 'macOS 13', 'macOS 14'];
-          const runtimes = ['Node 18', 'Node 20', 'Node 22', 'Node 23', 'Node 24'];
           const attempt = Number(process.env.RUN_ATTEMPT || 1);
-          const isFailure = (platform, runtime) => attempt === 1 && platform === 'Ubuntu 24.04' && runtime === 'Node 23';
+          const platforms = attempt === 1
+            ? ['Ubuntu 22.04', 'Ubuntu 24.04', 'Fedora 40', 'Windows 2022', 'macOS 13', 'macOS 14']
+            : ['macOS 14', 'Windows 2022', 'Ubuntu 22.04', 'Fedora 40', 'macOS 13', 'Ubuntu 24.04'];
+          const runtimes = attempt === 1
+            ? ['Node 18', 'Node 19', 'Node 20', 'Node 21', 'Node 22', 'Node 23', 'Node 24']
+            : ['Node 24', 'Node 21', 'Node 18', 'Node 23', 'Node 20', 'Node 22', 'Node 19'];
+          const persistentFailures = new Set(['Ubuntu 24.04|Node 23', 'macOS 14|Node 18']);
+          const transientFailure = 'Fedora 40|Node 21';
+          const failed = (platform, runtime) => persistentFailures.has(platform + '|' + runtime)
+            || (attempt === 1 && platform + '|' + runtime === transientFailure);
           const rows = ['| Platform \ Runtime | ' + runtimes.join(' | ') + ' |', '|---|' + runtimes.map(() => '---').join('|') + '|'];
           for (const platform of platforms) {
-            rows.push('| **' + platform + '** | ' + runtimes.map(runtime => isFailure(platform, runtime) ? '🟥' : '🟩').join(' | ') + ' |');
+            rows.push('| **' + platform + '** | ' + runtimes.map(runtime => failed(platform, runtime) ? '🟥' : '🟩').join(' | ') + ' |');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '# Compatibility matrix\n\nAttempt ' + attempt + '\n\n' + rows.join('\n') + '\n');
           NODE
@@ -30,5 +37,5 @@ jobs:
         if: github.run_attempt == 1
         shell: bash
         run: |
-          echo 'Compatibility probe failed: one platform/runtime cell is incompatible.'
+          echo 'Compatibility probe failed: one transient and two persistent cells need review.'
           exit 1
